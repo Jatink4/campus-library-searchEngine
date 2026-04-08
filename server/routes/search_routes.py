@@ -48,7 +48,7 @@ async def search(search_request: SearchRequest = Body(...)):
             "year_gte": search_request.filters.year_gte if search_request.filters else None,
             "year_lte": search_request.filters.year_lte if search_request.filters else None
         }
-        return await search_controller.search(search_request.query, filters)
+        return await search_controller.search(search_request.query.strip(), filters)
 
 @router.post("/auto-complete")
 async def auto_complete(search_request: SearchRequest = Body(...)):
@@ -62,7 +62,7 @@ async def auto_complete(search_request: SearchRequest = Body(...)):
             "year_gte": search_request.filters.year_gte if search_request.filters else None,
             "year_lte": search_request.filters.year_lte if search_request.filters else None
         }
-        return await search_controller.auto_complete(search_request.query, filters)
+        return await search_controller.auto_complete(search_request.query.strip(), filters)
 
 @router.post('/index')
 async def index_book(document: IndexRequest = Body(...)):
