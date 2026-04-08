@@ -203,21 +203,21 @@ class SearchController:
             if filters.get("category"):
                 filter_clauses.append({
                     "term": {
-                        "categories.keyword": filters["category"]
+                        "categories": filters["category"].lower()
                     }
                 })
 
             if filters.get("tag"):
                 filter_clauses.append({
                     "term": {
-                        "tags.keyword": filters["tag"]
+                        "tags.keyword": filters["tag"].lower()
                     }
                 })
 
             if filters.get("language"):
                 filter_clauses.append({
                     "term": {
-                        "language.keyword": filters["language"]
+                        "language.keyword": filters["language"].lower()
                     }
                 })
 
@@ -310,21 +310,21 @@ class SearchController:
             if filters.get("category"):
                 filter_clauses.append({
                     "term": {
-                        "categories.keyword": filters["category"]
+                        "categories": filters["category"].lower()
                     }
                 })
 
             if filters.get("tag"):
                 filter_clauses.append({
                     "term": {
-                        "tags.keyword": filters["tag"]
+                        "tags.keyword": filters["tag"].lower()
                     }
                 })
 
             if filters.get("language"):
                 filter_clauses.append({
                     "term": {
-                        "language.keyword": filters["language"]
+                        "language.keyword": filters["language"].lower()
                     }
                 })
 
