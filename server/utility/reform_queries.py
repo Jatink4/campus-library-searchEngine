@@ -1,11 +1,14 @@
 from typing import List, Dict
 from pydantic import BaseModel
+from .word_maps import load_word_maps
+
+word_maps = load_word_maps()
 
 author_keywords = {"author", "authors", "writer", "writers", "novelist", "novelists", "writtenby"}
 publisher_keywords = {"publisher", "publishers", "publishedby", "published", "publishing"}
 common_author_publisher_keywords = {"by", "of", "from"}
 edition_keywords = {"edition", "editions", "version", "versions"}
-
+category_keywords = {"category", "categories", "genre", "genres", "tag", "tags", "to", "on", "for" }
 edition_mapping = {
     ("first", "1", "1st", "1.0"): "1st",
     ("second", "2", "2nd", "2.0"): "2nd",
@@ -20,7 +23,7 @@ edition_mapping = {
 }
 
 stop_words = {
-    "the", "is", "in", "and", "to", "that", "this",
+    "the", "is", "in", "and", "that", "this",
     "suggest", "suggestion", "suggestions", "search", "find",
     "recommend", "recommendation", "recommendations", "some", "all", "few", "give", "me",
     "show", "list", "down", "read", "reads", "reading", "complete"
@@ -30,7 +33,8 @@ keywords = {
     "novel", "book", "books", "literature",
     "author", "authors", "publisher", "publishers",
     "tag", "tags", "category", "categories", "genre", "genres",
-    "writer", "writers", "novelist", "novelists", "writtenby"
+    "writer", "writers", "novelist", "novelists", "writtenby",
+    "related", "about"
 }
 
 class KeyWordSet(BaseModel):
@@ -68,7 +72,7 @@ def capture_entity(tokens: List[str], start: int):
     res = []
     i = start
     while i < len(tokens):
-        if tokens[i] in author_keywords or tokens[i] in publisher_keywords or tokens[i] in edition_keywords or tokens[i] in common_author_publisher_keywords:
+        if tokens[i] in author_keywords or tokens[i] in publisher_keywords or tokens[i] in edition_keywords or tokens[i] in common_author_publisher_keywords or tokens[i] in category_keywords or tokens[i] in {"related", "about"}:
             break
         res.append(tokens[i])
         i += 1
@@ -99,7 +103,9 @@ def key_query_words(tokens: List[str]) -> Dict[str, List[str]]:
     result = {
         "author": [],
         "publisher": [],
-        "edition": []
+        "edition": [],
+        "category": [],
+        "tag": []
     }
 
     i = 0
@@ -134,6 +140,55 @@ def key_query_words(tokens: List[str]) -> Dict[str, List[str]]:
                 i += jump + 1
                 continue
 
+        elif token in category_keywords:
+            val, jump = capture_entity(tokens, i + 1)
+            if val:
+                result["category"].append(val)
+                result["tag"].append(val)
+                if val in word_maps:
+                    result["category"].extend(word_maps[val])
+                    result["tag"].extend(word_maps[val])
+                i += jump + 1
+                continue
+
+        elif token in {"related", "about"}:
+            # Forward capture: "related to X" or "about X"
+            start_idx = i + 1
+            if i + 1 < n and tokens[i + 1] == "to":
+                start_idx = i + 2
+                
+            val, jump = capture_entity(tokens, start_idx)
+            if val:
+                result["category"].append(val)
+                result["tag"].append(val)
+                if val in word_maps:
+                    result["category"].extend(word_maps[val])
+                    result["tag"].extend(word_maps[val])
+                i = start_idx + jump
+                continue
+                
+            # Backward capture for "X related" 
+            if token == "related" and i > 0:
+                back_tokens = []
+                j = i - 1
+                while j >= 0 and len(back_tokens) < 4:
+                    t_b = tokens[j]
+                    if t_b in stop_words or t_b in keywords or t_b in common_author_publisher_keywords or t_b in category_keywords:
+                        break
+                    back_tokens.insert(0, t_b)
+                    j -= 1
+                
+                bval = " ".join(back_tokens).strip()
+                if bval:
+                    result["category"].append(bval)
+                    result["tag"].append(bval)
+                    if bval in word_maps:
+                        result["category"].extend(word_maps[bval])
+                        result["tag"].extend(word_maps[bval])
+            
+            i += 1
+            continue
+
         # ---- EDITION ----
         elif token in edition_keywords:
             if i + 1 < n:
@@ -162,14 +217,30 @@ def key_query_words(tokens: List[str]) -> Dict[str, List[str]]:
 
 def clean_tokens(tokens: List[str]) -> List[str]:
     res = []
-    for t in tokens:
+    n = len(tokens)
+    for i in range(n):
+        t = tokens[i]
         if t in stop_words:
             continue
         if t in keywords:
             continue
         if t in common_author_publisher_keywords:
             continue
-        res.append(singular(t))
+            
+        sing_t = singular(t)
+        res.append(sing_t)
+        
+        # Check single token
+        if sing_t in word_maps:
+            res.extend(word_maps[sing_t])
+            
+        # Check bigram (current and next token)
+        if i < n - 1:
+            next_t = singular(tokens[i+1])
+            bigram = f"{sing_t} {next_t}"
+            if bigram in word_maps:
+                res.extend(word_maps[bigram])
+                
     return res
 
 def join_variants(tokens: List[str]) -> List[str]:
@@ -186,7 +257,7 @@ def join_variants(tokens: List[str]) -> List[str]:
 def _try_split_on_keywords(query: str) -> str:
     """Try to split concatenated query on common keywords like 'on', 'by', 'of'"""
     # Common split words that often appear between meaningful parts
-    split_words = ["on", "by", "of", "from", "in", "at", "the"]
+    split_words = ["on", "by", "of", "from", "in", "at", "the", "to", "for"]
     
     for word in split_words:
         if word in query:
@@ -218,8 +289,8 @@ def reformulate_query(query: str):
 
     cleaned_query = " ".join(cleaned_tokens)
 
-    variants = join_variants(cleaned_tokens)
-    if cleaned_tokens:
-        variants.append("".join(cleaned_tokens))
+    # variants = join_variants(cleaned_tokens)
+    # if cleaned_tokens:
+    #     variants.append("".join(cleaned_tokens))
 
-    return keyword_query, variants, cleaned_query
+    return keyword_query, cleaned_query

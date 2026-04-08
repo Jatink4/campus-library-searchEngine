@@ -243,26 +243,10 @@ class SearchController:
                     "query": query,
                     "type": "cross_fields",
                     "fields": [
-                        "title",
-                        "authors.ngram",
-                        "tags",
-                        "publisher.ngram"
-                    ]
-                    }#this is the main clause for auto-complete else are for boosting exact matches
-                },
-
-                {
-                    "multi_match": {
-                    "query": query,
-                    "type": "bool_prefix",
-                    "fuzziness": "AUTO",
-                    "fields": [
-                        "title",
-                        "authors.ngram",
-                        "authors",
-                        "publisher.text",
-                        "tags",
-                        "publisher.ngram"
+                        "title^5",
+                        "authors^4",
+                        "tags^3",
+                        "publisher.text^3"
                     ]
                     }
                 },
@@ -289,9 +273,8 @@ class SearchController:
                     "multi_match": {
                     "query": query,
                     "fields": [
-                        "authors^3",
-                        "title.ngram^2",
-                        "publisher.text^2"
+                        "authors.ngram^3",
+                        "title.ngram^2"
                     ]
                     }
                 }
@@ -301,7 +284,7 @@ class SearchController:
                 "filter": filter_clauses
             }
             }
-        # print(filter_clauses)
+        print(filter_clauses)
         response = await search_db.search(
             index=self.index_name,
             query=search_query
@@ -359,210 +342,155 @@ class SearchController:
                 })
 
 
-        [keyword_query, variants, cleaned_query] = reformulate_query(query)
+            [keyword_query, cleaned_query] = reformulate_query(query)
 
-        print("Keyword Query:", keyword_query)
-        print("Variants:", variants)
-        print("Cleaned Query:", cleaned_query)
+            print("Keyword Query:", keyword_query)
+            # print("Variants:", variants)
+            print("Cleaned Query:", cleaned_query)
 
-        search_query = {
-            "bool": {
-                "must": [],
-                "should": [],
-                "filter": filter_clauses
+            search_query = {
+                "bool": {
+                    "should": [],
+                    "filter": filter_clauses
+                }
             }
-        }
 
-        # ---- 1. KEYWORD CLAUSES (IMPORTANT SIGNALS) ----
-        for key, values in keyword_query.items():
-            if not values:
-                continue
+            # ---- 1. MAIN QUERY (TOPIC DOMINANT) ----
+            if cleaned_query:
+                search_query["bool"]["should"].append({
+                    "multi_match": {
+                        "query": cleaned_query,
+                        "type": "cross_fields",
+                        "fields": [
+                            "title^6",
+                            "tags^5",
+                            "categories.text^6",
+                            "publisher.text^2"
+                        ],
+                        "boost": 4
+                    }
+                })
 
-            for value in values:
-                if key == "author":
-                    search_query["bool"]["should"].append({
-                        "match": {
-                            "authors.concat": {
+                search_query["bool"]["should"].append({
+                    "multi_match": {
+                        "query": cleaned_query,
+                        "type": "best_fields",
+                        "fields": [
+                            "title^5",
+                            "tags^3",
+                            "categories.text^4",
+                            "authors^1"
+                        ],
+                        "fuzziness": "AUTO",
+                        "boost": 3.5
+                    }
+                })
+
+            # ---- 2. KEYWORD SIGNALS (CONTROLLED) ----
+            for key, values in keyword_query.items():
+                if not values:
+                    continue
+
+                unique_values = set(values)
+
+                for value in unique_values:
+
+                    if key == "author":
+                        search_query["bool"]["should"].append({
+                            "multi_match": {
                                 "query": value,
-                                "boost": 10
+                                "fields": [
+                                    "authors^2",
+                                    "authors.ngram"
+                                ],
+                                "boost": 1
                             }
-                        }
-                    })
+                        })
 
-                elif key == "publisher":
-                    search_query["bool"]["should"].append({
-                        "match": {
-                            "publisher.concat": {
+                    elif key == "publisher":
+                        search_query["bool"]["should"].append({
+                            "multi_match": {
                                 "query": value,
-                                "boost": 8
+                                "fields": [
+                                    "publisher.concat^3",
+                                    "publisher.text^2",
+                                    "publisher.ngram"
+                                ],
+                                "boost": 1
                             }
-                        }
-                    })
+                        })
 
-                elif key == "edition":
-                    search_query["bool"]["should"].append({
-                        "term": {
-                            "edition": {
-                                "value": value,
-                                "boost": 5
+                    elif key == "category":
+                        search_query["bool"]["should"].append({
+                            "multi_match": {
+                                "query": value,
+                                "fields": [
+                                    "categories.text^5"
+                                ],
+                                "boost": 2.5
                             }
-                        }
-                    })
+                        })
 
+                    elif key == "tag":
+                        search_query["bool"]["should"].append({
+                            "match": {
+                                "tags": {
+                                    "query": value,
+                                    "boost": 2.5
+                                }
+                            }
+                        })
 
-        # ---- 2. MAIN QUERY (CLEANED QUERY) ----
-        if cleaned_query:
-            search_query["bool"]["must"].append({
-                "multi_match": {
-                    "query": cleaned_query,
-                    "type": "best_fields",
-                    "fields": [
-                        "title^5",
-                        "authors^3",
-                        "tags^2",
-                        "publisher^2"
-                    ],
-                    "fuzziness": "AUTO"
-                }
-            })
+                    elif key == "edition":
+                        search_query["bool"]["should"].append({
+                            "term": {
+                                "edition": {
+                                    "value": value,
+                                    "boost": 2
+                                }
+                            }
+                        })
 
-
-        # ---- 3. VARIANTS (IMPORTANT FOR YOUR CONCAT / EDGE NGRAM) ----
-        for v in variants[:5]:  # limit to avoid explosion
+            # ---- 3. ISBN EXACT MATCH ----
             search_query["bool"]["should"].append({
-                "multi_match": {
-                    "query": v,
-                    "fields": [
-                        "title",
-                        "authors.concat",
-                        "publisher.concat"
-                    ],
-                    "boost": 2
-                }
-            })
-
-
-        # ---- 4. ISBN EXACT MATCH ----
-        search_query["bool"]["should"].append({
-            "term": {
-                "isbn.keyword": {
-                    "value": query,
-                    "boost": 20
-                }
-            }
-        })
-
-
-        # ---- 5. DESCRIPTION (LOW IMPORTANCE) ----
-        search_query["bool"]["should"].append({
-            "match": {
-                "description": {
-                    "query": cleaned_query,
-                    "fuzziness": "AUTO",
-                    "boost": 0.3
-                }
-            }
-        })
-
-                # ---- 6. RAW QUERY FALLBACK ----
-        if query:
-            # broad match
-            search_query["bool"]["should"].append({
-                "multi_match": {
-                    "query": query,
-                    "fields": [
-                        "title^4",
-                        "authors^3",
-                        "publisher^2"
-                    ],
-                    "fuzziness": "AUTO",
-                    "boost": 1.5
-                }
-            })
-
-            # exact phrase boost (VERY IMPORTANT)
-            search_query["bool"]["should"].append({
-                "match_phrase": {
-                    "title": {
-                        "query": query,
-                        "boost": 6
+                "term": {
+                    "isbn.keyword": {
+                        "value": query,
+                        "boost": 15
                     }
                 }
             })
 
-        # ---- 7. LOW-SCORING FALLBACK CLAUSES (Won't interfere with main results) ----
-        # These have very low boost and only activate if main query doesn't match well
-        
-        # Fallback 1: Search individual parts in tags/categories with low boost
-        if cleaned_query:
-            parts = cleaned_query.split()
-            for part in parts:
-                if len(part) > 2:
-                    search_query["bool"]["should"].append({
-                        "match": {
-                            "tags": {
-                                "query": part,
-                                "boost": 0.2,
-                                "fuzziness": "AUTO"
-                            }
+            # ---- 4. CLEAN PHRASE BOOST ----
+            if cleaned_query:
+                search_query["bool"]["should"].append({
+                    "match_phrase": {
+                        "title": {
+                            "query": cleaned_query,
+                            "boost": 3
                         }
-                    })
-                    search_query["bool"]["should"].append({
-                        "match": {
-                            "categories.text": {
-                                "query": part,
-                                "boost": 0.15,
-                                "fuzziness": "AUTO"
-                            }
-                        }
-                    })
-        
-        # Fallback 2: Broad description search with very low boost
-        if cleaned_query:
-            search_query["bool"]["should"].append({
-                "multi_match": {
-                    "query": cleaned_query,
-                    "fields": ["description"],
-                    "fuzziness": 2,
-                    "boost": 0.1
-                }
-            })
-        
-        # Fallback 3: Search keyword query values across tags/categories
-        for key, values in keyword_query.items():
-            if values:
-                for value in values:
-                    if len(value) > 2:
-                        search_query["bool"]["should"].append({
-                            "multi_match": {
-                                "query": value,
-                                "fields": ["tags", "categories.text"],
-                                "fuzziness": "AUTO",
-                                "boost": 0.25
-                            }
-                        })
-        
-        # Fallback 4: Ultra-loose fuzzy search on original query (last resort)
-        if original_query := query:
-            search_query["bool"]["should"].append({
-                "multi_match": {
-                    "query": original_query,
-                    "fields": ["title^0.5", "tags", "categories.text"],
-                    "fuzziness": "AUTO",
-                    "boost": 0.05
-                }
-            })
+                    }
+                })
 
-        # ---- 8. OPTIONAL: ENSURE SHOULD HAS EFFECT ----
-        if search_query["bool"]["should"]:
+            # ---- 5. WEAK FALLBACK ----
+            if cleaned_query:
+                search_query["bool"]["should"].append({
+                    "match": {
+                        "description": {
+                            "query": cleaned_query,
+                            "boost": 1.2
+                        }
+                    }
+                })
+
+            # ---- 6. CONTROL SHOULD ----
             search_query["bool"]["minimum_should_match"] = 1
 
-
-        response = await search_db.search(
+            response = await search_db.search(
             index=self.index_name,
             query=search_query
         )
-
+        print (json.dumps(search_query, indent=2))
         # print(response)
         return response["hits"]["hits"]
 
