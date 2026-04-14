@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import "./App.css";
 import booksData from "./books.json";
+import { FILTER_OPTIONS } from "./filterOptions";
 
 const API_BASE = "http://localhost:8000";
 
@@ -231,6 +232,47 @@ function SearchResultsList({ results, onResultClick, loading }) {
   );
 }
 
+function FilterDropdown({ label, options, value, onChange, show, icon }) {
+  return (
+    <div className="filter-dropdown-wrapper">
+      <button 
+        className="filter-button"
+        onClick={() => onChange && onChange(!show)}
+        title={label}
+      >
+        <span className="filter-icon">{icon}</span>
+        <span className="filter-label">{value || label}</span>
+        <span className="filter-caret">▼</span>
+      </button>
+      {show && (
+        <div className="filter-options">
+          <button 
+            className="filter-option clear-option"
+            onClick={() => {
+              onChange && onChange(false);
+              value && onChange(false);
+            }}
+          >
+            Clear
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              className={`filter-option ${value === opt ? "selected" : ""}`}
+              onClick={() => {
+                onChange && onChange(false);
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function App() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -240,9 +282,16 @@ function App() {
   const [selectedBook, setSelectedBook] = useState(null);
   const [loading, setLoading] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
+  const [selectedAuthor, setSelectedAuthor] = useState("");
+  const [selectedPublisher, setSelectedPublisher] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [showAuthorFilter, setShowAuthorFilter] = useState(false);
+  const [showPublisherFilter, setShowPublisherFilter] = useState(false);
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
   const debounceRef = useRef(null);
   const searchRef = useRef(null);
   const detailRef = useRef(null);
+  const filterRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setHeroVisible(true), 100);
@@ -254,6 +303,11 @@ function App() {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setShowSuggestions(false);
       }
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setShowAuthorFilter(false);
+        setShowPublisherFilter(false);
+        setShowCategoryFilter(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -262,7 +316,15 @@ function App() {
   const fetchSuggestions = useCallback(async (q) => {
     if (!q.trim()) { setSuggestions([]); return; }
     try {
-      const res = await axios.post(`${API_BASE}/api/search/auto-complete`, { query: q });
+      const payload = { 
+        query: q,
+        filters: {
+          ...(selectedAuthor && { author: selectedAuthor }),
+          ...(selectedPublisher && { publisher: selectedPublisher }),
+          ...(selectedCategory && { category: selectedCategory })
+        }
+      };
+      const res = await axios.post(`${API_BASE}/api/search/auto-complete`, payload);
       console.log('Auto-complete response:', res.data);
       let results = res.data;
       
@@ -290,7 +352,7 @@ function App() {
       );
       setSuggestions(filtered);
     }
-  }, []);
+  }, [selectedAuthor, selectedPublisher, selectedCategory]);
 
   const handleInput = (e) => {
     const val = e.target.value;
@@ -327,7 +389,15 @@ function App() {
     setSelectedBook(null);
     setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/search`, { query: query });
+      const payload = { 
+        query: query,
+        filters: {
+          ...(selectedAuthor && { author: selectedAuthor }),
+          ...(selectedPublisher && { publisher: selectedPublisher }),
+          ...(selectedCategory && { category: selectedCategory })
+        }
+      };
+      const res = await axios.post(`${API_BASE}/api/search`, payload);
       console.log('Raw search response:', res.data);
       
       let results = [];
@@ -402,36 +472,179 @@ function App() {
         </div>
 
         <div className={`search-container ${heroVisible ? "search-visible" : ""}`} ref={searchRef}>
-          <div className="search-wrapper">
-            <div className="search-icon-left">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="8.5" cy="8.5" r="5.5" stroke="#7c3aed" strokeWidth="1.8" />
-                <path d="M13 13l4 4" stroke="#7c3aed" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
+          <div className="search-and-filters-wrapper">
+            <div className="search-wrapper">
+              <div className="search-icon-left">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="8.5" cy="8.5" r="5.5" stroke="#7c3aed" strokeWidth="1.8" />
+                  <path d="M13 13l4 4" stroke="#7c3aed" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </div>
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Search by title, author, ISBN…"
+                value={query}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                onFocus={() => query && setShowSuggestions(true)}
+                autoComplete="off"
+              />
+              {query && (
+                <button className="search-clear" onClick={() => { setQuery(""); setSuggestions([]); setSelectedBook(null); setShowResults(false); }}>✕</button>
+              )}
+              <button 
+                className="search-button" 
+                onClick={performSearch}
+                title="Search"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16Z" stroke="#7c3aed" strokeWidth="1.5" fill="none" />
+                  <path d="M13 13l6 6" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
             </div>
-            <input
-              className="search-input"
-              type="text"
-              placeholder="Search by title, author, ISBN…"
-              value={query}
-              onChange={handleInput}
-              onKeyDown={handleKeyDown}
-              onFocus={() => query && setShowSuggestions(true)}
-              autoComplete="off"
-            />
-            {query && (
-              <button className="search-clear" onClick={() => { setQuery(""); setSuggestions([]); setSelectedBook(null); setShowResults(false); }}>✕</button>
-            )}
+
+            <div className="filters-container" ref={filterRef}>
             <button 
-              className="search-button" 
-              onClick={performSearch}
-              title="Search"
+              className="filter-toggle-btn"
+              onClick={() => {
+                setShowAuthorFilter(!showAuthorFilter);
+                setShowPublisherFilter(false);
+                setShowCategoryFilter(false);
+              }}
+              title="Filter by Author"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16Z" stroke="#7c3aed" strokeWidth="1.5" fill="none" />
-                <path d="M13 13l6 6" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
+              <span>✍️</span> {selectedAuthor ? selectedAuthor : "Author"}
             </button>
+            <button 
+              className="filter-toggle-btn"
+              onClick={() => {
+                setShowPublisherFilter(!showPublisherFilter);
+                setShowAuthorFilter(false);
+                setShowCategoryFilter(false);
+              }}
+              title="Filter by Publisher"
+            >
+              <span>🏢</span> {selectedPublisher ? selectedPublisher : "Publisher"}
+            </button>
+            <button 
+              className="filter-toggle-btn"
+              onClick={() => {
+                setShowCategoryFilter(!showCategoryFilter);
+                setShowAuthorFilter(false);
+                setShowPublisherFilter(false);
+              }}
+              title="Filter by Category"
+            >
+              <span>📂</span> {selectedCategory ? selectedCategory : "Category"}
+            </button>
+
+            {showAuthorFilter && (
+              <div className="filter-dropdown author-filter">
+                <div className="filter-search-box">
+                  <input 
+                    type="text" 
+                    placeholder="Search author..." 
+                    className="filter-search-input"
+                  />
+                </div>
+                <div className="filter-options-list">
+                  <button 
+                    className="filter-option clear"
+                    onClick={() => {
+                      setSelectedAuthor("");
+                      setShowAuthorFilter(false);
+                    }}
+                  >
+                    Clear Filter
+                  </button>
+                  {FILTER_OPTIONS.authors.map((author) => (
+                    <button
+                      key={author}
+                      className={`filter-option ${selectedAuthor === author ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedAuthor(author);
+                        setShowAuthorFilter(false);
+                      }}
+                    >
+                      {author}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showPublisherFilter && (
+              <div className="filter-dropdown publisher-filter">
+                <div className="filter-search-box">
+                  <input 
+                    type="text" 
+                    placeholder="Search publisher..." 
+                    className="filter-search-input"
+                  />
+                </div>
+                <div className="filter-options-list">
+                  <button 
+                    className="filter-option clear"
+                    onClick={() => {
+                      setSelectedPublisher("");
+                      setShowPublisherFilter(false);
+                    }}
+                  >
+                    Clear Filter
+                  </button>
+                  {FILTER_OPTIONS.publishers.map((publisher) => (
+                    <button
+                      key={publisher}
+                      className={`filter-option ${selectedPublisher === publisher ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedPublisher(publisher);
+                        setShowPublisherFilter(false);
+                      }}
+                    >
+                      {publisher}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showCategoryFilter && (
+              <div className="filter-dropdown category-filter">
+                <div className="filter-search-box">
+                  <input 
+                    type="text" 
+                    placeholder="Search category..." 
+                    className="filter-search-input"
+                  />
+                </div>
+                <div className="filter-options-list">
+                  <button 
+                    className="filter-option clear"
+                    onClick={() => {
+                      setSelectedCategory("");
+                      setShowCategoryFilter(false);
+                    }}
+                  >
+                    Clear Filter
+                  </button>
+                  {FILTER_OPTIONS.categories.map((category) => (
+                    <button
+                      key={category}
+                      className={`filter-option ${selectedCategory === category ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setShowCategoryFilter(false);
+                      }}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           </div>
 
           {showSuggestions && suggestions.length > 0 && (

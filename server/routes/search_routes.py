@@ -18,6 +18,7 @@ class BookDocument(BaseModel):
     language: str
 
 class SearchFilters(BaseModel):
+    author: str | None = None
     publisher: str | None = None
     category: str | None = None
     tag: str | None = None
@@ -41,6 +42,7 @@ router = APIRouter()
 async def search(search_request: SearchRequest = Body(...)):
 
         filters = {
+            "author": search_request.filters.author if search_request.filters else None,
             "publisher": search_request.filters.publisher if search_request.filters else None,
             "category": search_request.filters.category if search_request.filters else None,
             "tag": search_request.filters.tag if search_request.filters else None,
@@ -55,6 +57,7 @@ async def auto_complete(search_request: SearchRequest = Body(...)):
         
         print("Received auto-complete request with query:", search_request.query, "and filters:", search_request.filters)
         filters = {
+            "author": search_request.filters.author if search_request.filters else None,
             "publisher": search_request.filters.publisher if search_request.filters else None,
             "category": search_request.filters.category if search_request.filters else None,
             "tag": search_request.filters.tag if search_request.filters else None,

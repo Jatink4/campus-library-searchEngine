@@ -1,0 +1,56 @@
+// Extracted from books.json - Hardcoded filter options
+export const FILTER_OPTIONS = {
+  authors: [
+    "Alan Donovan",
+    "Andrew Tanenbaum",
+    "Bjarne Stroustrup",
+    "Brendan Eich",
+    "Brian Kernighan",
+    "Charles E. Leiserson",
+    "Dennis Ritchie",
+    "Eva Tardos",
+    "Guido van Rossum",
+    "Jeff Dean",
+    "Jennifer Widom",
+    "Jon Kleinberg",
+    "Ken Thompson",
+    "Leslie Lamport",
+    "Linus Torvalds",
+    "Martin Kleppmann",
+    "Niklaus Wirth",
+    "Robert C. Martin",
+    "Sanjay Ghemawat",
+    "Thomas H. Cormen"
+  ],
+  publishers: [
+    "AIPress",
+    "AlgoCore",
+    "AlgoWorks",
+    "CloudPress",
+    "CodeCraft",
+    "CoreSystems",
+    "DataPress",
+    "LangTech",
+    "NetPress",
+    "SecureTech",
+    "SystemCore",
+    "SystemPress",
+    "TechPress",
+    "WebCore"
+  ],
+  categories: [
+    "Algorithms",
+    "Cloud Computing",
+    "Compilers",
+    "Computer Architecture",
+    "Databases",
+    "Distributed Systems",
+    "Machine Learning",
+    "Networking",
+    "Operating Systems",
+    "Security",
+    "Software Engineering",
+    "System Design",
+    "Web Development"
+  ]
+};
