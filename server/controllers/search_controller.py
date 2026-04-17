@@ -234,6 +234,14 @@ class SearchController:
                     }
                 })
 
+            if filters.get("author"):
+                filter_clauses.append({
+                       "term":{
+                            "authors.keyword": filters["author"].lower()
+                       }
+                    
+                })
+
         search_query = {
             "bool": {
                 "should": [
@@ -339,6 +347,14 @@ class SearchController:
                     "range": {
                         "publication_year": range_query
                     }
+                })
+
+            if filters.get("author"):
+                filter_clauses.append({
+                       "term":{
+                            "authors.keyword": filters["author"].lower()
+                       }
+                    
                 })
 
 

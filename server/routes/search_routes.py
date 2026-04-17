@@ -24,6 +24,7 @@ class SearchFilters(BaseModel):
     language: str | None = None
     year_gte: int | None = None
     year_lte: int | None = None
+    author: str | None = None
 
 class SearchRequest(BaseModel):
     query: str
@@ -46,7 +47,8 @@ async def search(search_request: SearchRequest = Body(...)):
             "tag": search_request.filters.tag if search_request.filters else None,
             "language": search_request.filters.language if search_request.filters else None,
             "year_gte": search_request.filters.year_gte if search_request.filters else None,
-            "year_lte": search_request.filters.year_lte if search_request.filters else None
+            "year_lte": search_request.filters.year_lte if search_request.filters else None,
+            "author": search_request.filters.author if search_request.filters else None
         }
         return await search_controller.search(search_request.query.strip(), filters)
 
@@ -60,7 +62,8 @@ async def auto_complete(search_request: SearchRequest = Body(...)):
             "tag": search_request.filters.tag if search_request.filters else None,
             "language": search_request.filters.language if search_request.filters else None,
             "year_gte": search_request.filters.year_gte if search_request.filters else None,
-            "year_lte": search_request.filters.year_lte if search_request.filters else None
+            "year_lte": search_request.filters.year_lte if search_request.filters else None,
+            "author": search_request.filters.author if search_request.filters else None
         }
         return await search_controller.auto_complete(search_request.query.strip(), filters)
 

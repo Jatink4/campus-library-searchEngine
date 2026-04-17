@@ -3,7 +3,7 @@ import axios from "axios";
 import "./App.css";
 import booksData from "./books.json";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 const MOCK_AUTOCOMPLETE = [
   { id: 5, title: "Mastering Database Systems and Query Optimization Techniques", authors: ["Jennifer Widom"], publisher: "DataPress", edition: "2nd", publication_year: 2021 },
@@ -13,14 +13,16 @@ const MOCK_AUTOCOMPLETE = [
   { id: 4, title: "Designing Data-Intensive Applications", authors: ["Martin Kleppmann"], publisher: "O'Reilly Media", edition: "1st", publication_year: 2017 },
 ];
 
-// Parse books.json to extract unique publishers and categories
+// Parse books.json to extract unique publishers and categories (and other filters)
 const extractFilterOptions = () => {
   const publishers = [...new Set(booksData.map(b => b.publisher))].sort();
   const categories = [...new Set(booksData.flatMap(b => b.categories || []))].sort();
   const languages = [...new Set(booksData.map(b => b.language))].sort();
   const years = [...new Set(booksData.map(b => b.publication_year))].sort((a, b) => b - a);
+  const authors = [...new Set(booksData.flatMap(b => b.authors || []))].sort();
   
   return {
+    authors,
     publishers,
     categories,
     languages,
@@ -231,6 +233,128 @@ function SearchResultsList({ results, onResultClick, loading }) {
   );
 }
 
+function FilterModal({ isOpen, onClose, onApply, filterOptions }) {
+  const [tempFilters, setTempFilters] = useState({
+    author: "",
+    publisher: "",
+    category: "",
+    language: "",
+    year: ""
+  });
+
+  const handleFilterChange = (filterKey, value) => {
+    setTempFilters(prev => ({
+      ...prev,
+      [filterKey]: value
+    }));
+  };
+
+  const handleApply = () => {
+    onApply(tempFilters);
+    onClose();
+  };
+
+  const handleReset = () => {
+    setTempFilters({
+      author: "",
+      publisher: "",
+      category: "",
+      language: "",
+      year: ""
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="filter-modal-overlay" onClick={onClose}>
+      <div className="filter-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="filter-modal-header">
+          <h2>Filter Results</h2>
+          <button className="filter-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="filter-modal-content">
+          <div className="filter-group">
+            <label>Authors</label>
+            <select 
+              value={tempFilters.author} 
+              onChange={(e) => handleFilterChange("author", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Authors</option>
+              {filterOptions.authors.map((author, idx) => (
+                <option key={idx} value={author}>{author}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Publishers</label>
+            <select 
+              value={tempFilters.publisher} 
+              onChange={(e) => handleFilterChange("publisher", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Publishers</option>
+              {filterOptions.publishers.map((pub, idx) => (
+                <option key={idx} value={pub}>{pub}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Categories</label>
+            <select 
+              value={tempFilters.category} 
+              onChange={(e) => handleFilterChange("category", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Categories</option>
+              {filterOptions.categories.map((cat, idx) => (
+                <option key={idx} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Languages</label>
+            <select 
+              value={tempFilters.language} 
+              onChange={(e) => handleFilterChange("language", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Languages</option>
+              {filterOptions.languages.map((lang, idx) => (
+                <option key={idx} value={lang}>{lang}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Publication Year</label>
+            <select 
+              value={tempFilters.year} 
+              onChange={(e) => handleFilterChange("year", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">Any Year</option>
+              {filterOptions.years.map((year, idx) => (
+                <option key={idx} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="filter-modal-footer">
+          <button className="filter-btn-reset" onClick={handleReset}>Reset</button>
+          <button className="filter-btn-apply" onClick={handleApply}>Apply Filters</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -240,6 +364,15 @@ function App() {
   const [selectedBook, setSelectedBook] = useState(null);
   const [loading, setLoading] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState({
+    author: "",
+    publisher: "",
+    category: "",
+    language: "",
+    year: ""
+  });
+  const [filterOptions] = useState(extractFilterOptions());
   const debounceRef = useRef(null);
   const searchRef = useRef(null);
   const detailRef = useRef(null);
@@ -321,13 +454,35 @@ function App() {
     }
   };
 
+  const handleApplyFilters = (filters) => {
+    setSelectedFilters(filters);
+  };
+
   const performSearch = async () => {
     if (!query.trim()) return;
     setShowSuggestions(false);
     setSelectedBook(null);
     setLoading(true);
+    
+    // Build filters object excluding empty values
+    const filters = {};
+    if (selectedFilters.author) filters.author = selectedFilters.author;
+    if (selectedFilters.publisher) filters.publisher = selectedFilters.publisher;
+    if (selectedFilters.category) filters.category = selectedFilters.category;
+    if (selectedFilters.language) filters.language = selectedFilters.language;
+    if (selectedFilters.year) filters.year = selectedFilters.year;
+
+    console.log('Filters being sent from frontend:', filters);
+
     try {
-      const res = await axios.post(`${API_BASE}/api/search`, { query: query });
+      const requestPayload = {
+        query: query,
+        filters: filters
+      };
+      
+      console.log('Complete request payload:', requestPayload);
+      
+      const res = await axios.post(`${API_BASE}/api/search/`, requestPayload);
       console.log('Raw search response:', res.data);
       
       let results = [];
@@ -423,6 +578,17 @@ function App() {
               <button className="search-clear" onClick={() => { setQuery(""); setSuggestions([]); setSelectedBook(null); setShowResults(false); }}>✕</button>
             )}
             <button 
+              className="filter-button" 
+              onClick={() => setShowFilterModal(true)}
+              title="Filters"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <line x1="2" y1="4" x2="18" y2="4" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="4" y1="10" x2="16" y2="10" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="7" y1="16" x2="13" y2="16" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button 
               className="search-button" 
               onClick={performSearch}
               title="Search"
@@ -477,6 +643,13 @@ function App() {
           </div>
         )}
       </main>
+
+      <FilterModal 
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={handleApplyFilters}
+        filterOptions={filterOptions}
+      />
     </div>
   );
 }

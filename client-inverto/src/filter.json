@@ -1,0 +1,29 @@
+{
+  "filterCategories": [
+    {
+      "name": "Authors",
+      "key": "author",
+      "options": []
+    },
+    {
+      "name": "Publishers",
+      "key": "publisher",
+      "options": []
+    },
+    {
+      "name": "Categories",
+      "key": "category",
+      "options": []
+    },
+    {
+      "name": "Languages",
+      "key": "language",
+      "options": []
+    },
+    {
+      "name": "Publication Year",
+      "key": "year",
+      "options": []
+    }
+  ]
+}
