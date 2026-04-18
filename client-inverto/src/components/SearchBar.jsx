@@ -11,7 +11,7 @@ function SearchBar() {
     const res = await searchBooks(query);
     const data = await res.json();
 
-    setResults(data);
+    setResults(data.hits?.hits?.map(item => item._source) || []);
   };
 
   const inputStyle = {

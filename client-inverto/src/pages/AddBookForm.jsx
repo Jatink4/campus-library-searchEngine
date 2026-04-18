@@ -5,18 +5,23 @@ function AddBookForm() {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
 
-  const submit = async () => {
+    const submit = async () => {
     await addBook({
-      title: title,
-      description: "",
-      authors: [author],
-      publisher: "",
-      year: 2024,
-      subject: ""
-    });
+    title: title,
+    authors: [author],
+    publisher: "",
+    publication_year: 2024,
+    isbn: "",
+    description: "",
+    tags: [],
+    categories: [],
+    edition: "1st",
+    pages: 100,
+    language: "English"
+  });
 
-    alert("Book Added");
-  };
+  alert("Book Added");
+};
 
   const inputStyle = {
     width: "100%",

@@ -11,7 +11,7 @@ const load = async ()=>{
 const res = await getBooks();
 const data = await res.json();
 
-setBooks(data);
+setBooks(data.hits?.hits?.map(item => item._source) || []);
 
 };
 
@@ -52,7 +52,7 @@ boxShadow:"0 2px 4px rgba(28, 161, 223, 0.1)"
 {b.title} - {b.authors.join(", ")}
 </span>
 
-<DeleteButton id={i}/>
+<DeleteButton id={b.id} />
 
 </li>
 
